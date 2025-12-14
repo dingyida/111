@@ -1,0 +1,160 @@
+# AoI Minimization RL Configuration
+# ==================================
+
+# Environment Settings
+env:
+  num_cameras: 5
+  num_objects: 5
+  episode_length: 200
+  
+  # Pose AoI increment per frame for each object (object 0-4)
+  pose_aoi_increment: [0.006, 0.02, 0.05, 0.01, 0.036]
+  
+  # Initial values
+  initial_pose_aoi: 0.0
+  initial_style_aoi: 1.0
+  
+  # Resolution settings: resolution_id -> (cooldown_frames, width, height)
+  resolutions:
+    1:  # 640x360
+      cooldown: 1
+      width: 640
+      height: 360
+    2:  # 1280x720
+      cooldown: 2
+      width: 1280
+      height: 720
+
+  # Object ID mapping (actor name -> object_id)
+  object_mapping:
+    actor197: 0
+    actor198: 1
+    actor199: 2
+    actor200: 3
+    actor201: 4
+
+# Spherical Coverage Encoder Settings
+coverage_embed_dim: 16  # Dimension of coverage embedding per object
+
+# Reward Settings
+reward:
+  # Trade-off between pose AoI and style AoI
+  # total_aoi = alpha * (pose_aoi / pose_norm) + (1 - alpha) * (style_aoi / style_norm)
+  alpha: 0.5
+  
+  # Normalization factors to balance pose and style AoI magnitudes
+  # Adjust these based on observed raw AoI values
+  pose_aoi_norm: 0.1       # Typical max pose AoI value
+  style_aoi_norm: 5.0      # Typical max style AoI (5 objects × 1.0)
+  
+  # Optional reward scaling
+  reward_scale: 1.0
+  
+  # Normalization settings for pose AoI in observation
+  pose_aoi_max_expected: 10.0
+
+# Style Error Parameters (used by aoi_manager.py)
+# Formula: Q = 1 - exp(-k * mean_coverage), style_error = 1 - Q
+style_error:
+  # Coverage saturation factor
+  # Higher k = faster saturation (Q approaches 1 sooner with less coverage)
+  # Range: 1.0 - 10.0, Default: 4.0
+  k: 8.0
+  
+  # Angular decay exponent
+  # Higher p = sharper angular falloff (camera only covers directions it directly faces)
+  # Range: 2.0 - 16.0, Default: 8.0
+  p: 8.0
+  
+  # Distance penalty coefficient
+  # Higher alpha = more penalty for cameras far from object
+  # Range: 0.0 - 1.0, Default: 0.2
+  alpha: 0.6
+  
+  # Resolution sensitivity exponent
+  # Higher beta = more benefit from high resolution cameras
+  # Range: 0.0 - 2.0, Default: 0.6
+  beta: 2.0
+  
+  # Distance penalty exponent
+  # Higher zeta = stronger distance penalty
+  # Range: 0.5 - 2.0, Default: 1.0
+  zeta: 1.0
+  
+  # Default camera field of view (degrees)
+  default_fov_deg: 45.0
+  
+  # Number of Fibonacci sphere samples for coverage integration
+  # Higher = more accurate but slower (1024 for training, 4096 for evaluation)
+  n_samples: 1024
+
+# Camera Settings
+cameras:
+  # Default FOV if not specified
+  default_fov_deg: 45.0
+  
+  # Camera positions (will be loaded from data if available)
+  # Format: camera_id -> [x, y, z]
+  positions: null  # Load from data
+
+# PPO Hyperparameters
+ppo:
+  learning_rate: 3.0e-4
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.02        # Slightly higher for single sequence
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  
+  # Network architecture
+  policy_kwargs:
+    net_arch:
+      pi: [256, 256]
+      vf: [256, 256]
+
+# SAC Hyperparameters
+sac:
+  learning_rate: 3.0e-4
+  buffer_size: 100000     # Replay buffer size
+  learning_starts: 1000   # Steps before learning starts
+  batch_size: 256
+  tau: 0.005              # Soft update coefficient
+  gamma: 0.99             # Discount factor
+  train_freq: 1           # Update every step
+  gradient_steps: 1       # Gradient steps per update
+  ent_coef: "auto"        # Entropy coefficient (auto-tuned)
+  target_entropy: "auto"  # Target entropy (auto-tuned)
+  use_sde: false          # State-dependent exploration
+  
+  # Network architecture
+  policy_kwargs:
+    net_arch: [256, 256]
+
+# Training Settings
+training:
+  total_timesteps: 500000
+  num_envs: 4
+  save_freq: 10000
+  eval_freq: 5000
+  log_dir: "./logs"
+  model_dir: "./saved_models"
+  
+  # Data augmentation for single sequence
+  augmentation:
+    random_start_frame: true
+    max_start_frame: 50
+    pose_noise_std: 0.001
+
+# Data Paths
+data:
+  render_output_path: "./data/render_output"
+  variance_model_path: "./models/variance_predictor_final.pth"
+
+# Evaluation Settings
+evaluation:
+  n_eval_episodes: 10
+  deterministic: true
